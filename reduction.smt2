@@ -32,8 +32,8 @@
 ; adjacent edge colors match.
 ; Then, we verify that the middle tile is part of one of the 3x3 blocks.
 
-; Finally, we verify that all tiles would be mirrored or non-mirrored if placed
-; on an infinite plane.
+; Finally, we verify that all tiles would be mirrored or all would be
+; non-mirrored if placed on an infinite plane.
 ; We do this by verifying that the middle tile of our 7x7 grid and its neighbors
 ; are either all mirrored or are all non-mirrored.
 
