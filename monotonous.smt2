@@ -50,6 +50,8 @@
 ;; Variables used for proofs.
 (declare-const SomeCellIndex Int)
 (declare-const SomeEventTime Int)
+
+; We don't rely on these constraints, but they help the solver.
 (assert (valid_event_time SomeEventTime))
 (assert (valid_cell_index SomeEventTime SomeCellIndex))
 
@@ -61,12 +63,15 @@
 (declare-const InductionBasisIndex0 Bool)
 (declare-const InductionBasisIndex1 Bool)
 (declare-const InductionBasisIndex2 Bool)
+(declare-const InductionBasisIndexUltimate Bool)
 (assert (= SingleEvent (= Lifespan 2)))
 (assert (= InductionBasisTime1 (<= SomeEventTime 1)))
 (assert (= InductionBasisTime2 (<= SomeEventTime 2)))
 (assert (= InductionBasisIndex0 (<= SomeCellIndex 0)))
 (assert (= InductionBasisIndex1 (<= SomeCellIndex 1)))
 (assert (= InductionBasisIndex2 (<= SomeCellIndex 2)))
+(assert (= InductionBasisIndexUltimate (= SomeCellIndex
+                                          (population_size SomeEventTime))))
 
 
 (echo "######################################################################")
@@ -215,7 +220,7 @@
                    1 0)
               (population_potential_rec t (- i 1)))))))
 
- 
+
 (push)
 (echo "######################################################################")
 (echo "Verifying that population potential is less than or equal to its actual size.")
@@ -344,19 +349,21 @@
 ;; In order to sustain life, the population size plus its potential cannot ever
 ;; decrease. This sum cannot increase, so any decrease would be permanent.
 (define-fun SustainedLife ((t Int)) Bool
-  (=> (and (valid_event_time t))
+  (=> (valid_event_time t)
       (= (+ (population_size t) (population_potential t))
          (+ (population_size (- t 1)) (population_potential (- t 1))))))
+
+(declare-const Lit_SustainedLife Bool)
+(assert (= Lit_SustainedLife
+           (SustainedLife SomeEventTime)))
 
 (echo "######################################################################")
 (echo "Verifying that each cell that dies must be incompatible with its neighbors,")
 (echo "and those neighbors must be compatible with each other if life is sustained.")
-(echo "(expect unsat)")
-(define-fun Pred_SustainableDeath ((t Int) (i Int)) Bool
+(define-fun Pred_SustainableDeathAddsCompatibility ((t Int)) Bool
   (=> (and (valid_event_time t)
-           (valid_cell_index t i)
-           (SustainedLife t)
-           (> (death t) 0))
+           (> (death t) 0)
+           (SustainedLife t))
       (and
         (not (compatible (planet (- t 1) (- (death t) 1))
                          (planet (- t 1) (death t))))
@@ -364,82 +371,91 @@
                          (planet (- t 1) (+ (death t) 1))))
         (compatible (planet (- t 1) (- (death t) 1))
                     (planet (- t 1) (+ (death t) 1))))))
-(declare-const Lemma_SustainableDeath Bool)
-(assert (= Lemma_SustainableDeath
-           (Pred_SustainableDeath SomeEventTime SomeCellIndex)))
-(declare-const Hypothesis_SustainableDeath Bool)
-(assert (= Hypothesis_SustainableDeath
-           (Pred_SustainableDeath SomeEventTime (- SomeCellIndex 1))))
 
-;;;; Proof by induction.
-;(check-sat-assuming ((not Lemma_SustainableDeath)
-;                     SingleEvent
-;                     InductionBasisIndex0))
-;(assert (=> InductionBasisIndex0 Lemma_SustainableDeath))
-;(check-sat-assuming ((not Lemma_SustainableDeath)
-;                     SingleEvent
-;                     InductionBasisIndex1))
-;(assert (=> InductionBasisIndex1 Lemma_SustainableDeath))
-;(check-sat-assuming ((not Lemma_SustainableDeath)
-;                     SingleEvent
-;                     InductionBasisIndex2))
-;(assert (=> InductionBasisIndex2 Lemma_SustainableDeath))
-;(check-sat-assuming ((not Lemma_SustainableDeath)
-;                     SingleEvent
-;                     (not InductionBasisIndex2)
-;                     Hypothesis_SustainableDeath))
-;;;;; Proved.
-;(assert (forall ((t Int) (i Int))
-;          (Pred_SustainableDeath t i)))
 
-(push)
-(define-fun Assumptions ((t Int) (i Int)) Bool
-  (and (valid_event_time t)
-       (> (death t) 0)
-       (>= i 0) (<= i (population_size t))
-       (or (compatible (planet (- t 1) (- (death t) 1))
-                       (planet (- t 1) (death t)))
-           (compatible (planet (- t 1) (death t))
-                       (planet (- t 1) (+ (death t) 1)))
-           (not (compatible (planet (- t 1) (- (death t) 1))
-                            (planet (- t 1) (+ (death t) 1)))))))
-(define-fun Predicate ((t Int) (i Int)) Bool
-  (and
-    (=> (< i (death t))
-        (= (population_potential_rec t i)
-           (population_potential_rec (- t 1) i)))
-    (=> (>= i (death t))
-        (<= (population_potential_rec t i)
-            (population_potential_rec (- t 1) (+ i 1))))))
-(declare-const t Int)
+(define-fun Pred_SustainableDeath ((t Int) (i Int)) Bool
+  (=> (and (valid_event_time t)
+           (valid_cell_index t i)
+           (> (death t) 0))
+    (and
+      (=> (< i (death t))
+          (= (population_potential_rec t i)
+             (population_potential_rec (- t 1) i)))
+      (=> (= i (death t))
+          (= (population_potential_rec t i)
+             (+ (population_potential_rec (- t 1) i)
+                1)))
+      (=> (= i (death t))
+          (not (compatible (planet (- t 1) (- i 1))
+                           (planet (- t 1) i))))
+      (=> (= i (death t))
+          (not (compatible (planet (- t 1) i)
+                           (planet (- t 1) (+ i 1)))))
+      (=> (= i (death t))
+          (compatible (planet (- t 1) (- i 1))
+                      (planet (- t 1) (+ i 1))))
+      (=> (>= i (death t))
+          (= (population_potential_rec t i)
+             (+ (population_potential_rec (- t 1) (+ i 1))
+                1))))))
 
-(push)
-(declare-const i Int)
-(assert (= i SomeCellIndex))
-(assert (Assumptions t i))
 
-;;;; For a contradiction, assume:
-(assert (not (Predicate t i)))
-;;;; Inductive base.
-(check-sat-assuming (InductionBasisIndex0))
-(assert (Predicate t 0))
-(check-sat-assuming (InductionBasisIndex1))
-(assert (Predicate t 1))
-(check-sat-assuming (InductionBasisIndex2))
-(assert (Predicate t 2))
-;;;; Inductive step.
-(assert (> i 2))
-(assert (Predicate t (- i 1)))
-(check-sat) (pop)
+(echo ".. Proving that we can apply downward induction on Pred_SustainableDeath.")
+(echo ".. (expect unsat)")
+(define-fun Pred_Downward_SustainableDeath ((t Int) (i Int)) Bool
+  (=> (and (valid_event_time t)
+           (valid_cell_index t i))
+      (=> (Pred_SustainableDeath t i)
+          (Pred_SustainableDeath t (- i 1)))))
 
-(assert (forall ((i Int))
-          (=> (Assumptions t i)
-              (Predicate t i))))
-(assert (not (Pred_SustainableDeath t SomeCellIndex)))
-(check-sat) (pop)
-;;; Proved.
+(declare-const Lemma_Downward_SustainableDeath Bool)
+(assert (= Lemma_Downward_SustainableDeath
+           (Pred_Downward_SustainableDeath SomeEventTime SomeCellIndex)))
+
+(check-sat-assuming ((not Lemma_Downward_SustainableDeath)
+                     SingleEvent))
 (assert (forall ((t Int) (i Int))
-          (Pred_SustainableDeath t i)))
+          (Pred_Downward_SustainableDeath t i)))
+(assert (forall ((t Int) (i Int) (j Int))
+          (=> (and (< j i)
+                   (valid_event_time t)
+                   (valid_cell_index t i)
+                   (Pred_SustainableDeath t i))
+              (Pred_SustainableDeath t j))))
+
+
+(echo ".. Verifying that SustainedLife implies Pred_SustainableDeath.")
+(echo ".. (expect unsat)")
+
+(declare-const Lit_SustainableDeath Bool)
+(assert (= Lit_SustainableDeath
+           (Pred_SustainableDeath SomeEventTime SomeCellIndex)))
+
+(check-sat-assuming ((not Lit_SustainableDeath)
+                     InductionBasisIndexUltimate
+                     Lit_SustainedLife))
+(assert (forall ((t Int))
+          (=> (SustainedLife t)
+              (Pred_SustainableDeath t (population_size t)))))
+
+(check-sat-assuming ((not Lit_SustainableDeath)
+                     Lit_SustainedLife))
+(assert (forall ((t Int) (i Int))
+          (=> (SustainedLife t)
+              (Pred_SustainableDeath t i))))
+
+(echo ".. Verifying the actual lemma.")
+(echo ".. (expect unsat)")
+
+(declare-const Lemma_SustainableDeathAddsCompatibility Bool)
+(assert (= Lemma_SustainableDeathAddsCompatibility
+           (Pred_SustainableDeathAddsCompatibility SomeEventTime)))
+(check-sat-assuming ((not Lemma_SustainableDeathAddsCompatibility)
+                     SingleEvent))
+
+;;;; Proved.
+(assert (forall ((t Int))
+          (Pred_SustainableDeathAddsCompatibility t)))
 
 
 ; vim: ft=lisp:lw+=define-fun,forall,exists:
