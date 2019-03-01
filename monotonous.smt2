@@ -186,14 +186,6 @@
         (and (not (compatible p c))
              (not (compatible c q))))))
 
-;; Incompatible with grandparents.
-(assert
-  (forall ((g Int) (p Int) (c Int)  (q Int) (h Int))
-    (=> (and (spawnable g p h)
-             (spawnable p c q))
-        (and (not (compatible g c))
-             (not (compatible c h))))))
-
 ;; This is how spawning works.
 (assert
   (forall ((t Int))
