@@ -1,4 +1,7 @@
 
+
+;(set-option :produce-models true)
+
 (set-logic UFLIA)
 
 (declare-fun planet (Int Int) Int)
@@ -22,30 +25,27 @@
 
 (assert
   (forall ((t Int) (i Int))
-    (=> (and (valid_time t) (valid_cell_index i)
+    (=> (and (valid_time t)
+             (valid_cell_index i)
              (not (alive t i)))
         (= (planet t i) -1))))
 
-
-(declare-const Synchrony Bool)
-
-(assert Synchrony)
-;(assert (not Synchrony))
 
 (declare-const SomeCellIndex Int)
 (declare-const SomeEventTime Int)
 
 
-(declare-const InductionBasisTime1 Bool)
+(declare-const SingleEvent Bool)
 (declare-const InductionBasisTime2 Bool)
-(declare-const InductionBasisTime3 Bool)
-(declare-const InductionBasisTime4 Bool)
 (declare-const InductionBasisTime5 Bool)
-(assert (= InductionBasisTime1 (<= SomeEventTime 1)))
+(declare-const InductionBasisIndex2 Bool)
+(assert (= SingleEvent (= Timespan 1)))
 (assert (= InductionBasisTime2 (<= SomeEventTime 2)))
-(assert (= InductionBasisTime3 (<= SomeEventTime 3)))
-(assert (= InductionBasisTime4 (<= SomeEventTime 4)))
 (assert (= InductionBasisTime5 (<= SomeEventTime 5)))
+(assert (= InductionBasisIndex2 (<= SomeCellIndex 2)))
+
+(declare-const Lit_TimespanUpTo4  Bool)
+(assert (= Lit_TimespanUpTo4 (<= Timespan 4)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Boundary Conditions
@@ -73,10 +73,6 @@
   (and (alive (- t 1) i)
        (not (alive t i))))
 
-(define-fun some_event ((t Int) (i Int)) Bool
-  (not (= (alive (- t 1) i)
-          (alive t i))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; How cells change as time progresses.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -94,28 +90,9 @@
   (forall ((t Int) (i Int))
     (=> (and (valid_event_time t)
              (valid_cell_index i)
-             (not (some_event t i)))
+             (= (alive t i) (alive (- t 1) i)))
         (= (planet t i)
            (planet (- t 1) i)))))
-
-;; Force something to spawn or die.
-(assert
-  (forall ((t Int))
-    (=> (valid_event_time t)
-        (exists ((i Int))
-          (and (valid_cell_index i)
-               (some_event t i))))))
-
-(assert
-  (=> (not Synchrony)
-      (forall ((t Int) (i Int) (j Int))
-        (=> (and (valid_event_time t)
-                 (valid_cell_index i)
-                 (valid_cell_index j)
-                 (not (= i j)))
-            (or (not (some_event t i))
-                (not (some_event t j)))))))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Spawning Relation
@@ -132,7 +109,6 @@
         (and (>= p 0) (>= c 0) (>= q 0)))))
 
 ;;; Whether a cell can result from cells with the given genomes spawning.
-;(declare-fun compatible (Int Int) Bool)
 (define-fun compatible ((p Int) (q Int)) Bool
   (exists ((c Int))
     (spawnable p c q)))
@@ -142,8 +118,12 @@
   (forall ((g Int) (p Int) (c Int)  (q Int) (h Int))
     (=> (and (spawnable g p h)
              (spawnable p c q))
-        (and (not (compatible g c))
-             (not (compatible c h))))))
+        (not (compatible g c)))))
+(assert
+  (forall ((g Int) (p Int) (c Int)  (q Int) (h Int))
+    (=> (and (spawnable g q h)
+             (spawnable p c q))
+        (not (compatible c h)))))
 
 ;; This is how spawning works.
 (assert
@@ -154,16 +134,6 @@
         (spawnable (planet (- t 1) (- i 1))
                    (planet t i)
                    (planet (- t 1) (+ i 1))))))
-
-;; Avoid flapping.
-(assert
-  (forall ((t Int) (i Int))
-    (=> (and (valid_event_time t)
-             (valid_cell_index i)
-             (death_event t i))
-        (not (spawnable (planet t (- i 1))
-                        (planet (- t 1) i)
-                        (planet t (+ i 1)))))))
 
 (check-sat)
 
@@ -194,11 +164,167 @@
           (Pred_SustainableDeathAddsCompatibility t i)))
 
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Proof that a spawned cell outlives its parents.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;(declare-const Lemma_Unidirectional Bool)
-;(assert
-;  (= Lemma_Unidirectional
-;     (=> (death_event 1 1))
+(echo "######################################################################")
+(echo "Verifying both of a cell's parents must die before it dies.")
 
+(declare-const GenomeOfLeftParent Int)
+(declare-const GenomeOfInterest Int)
+(declare-const GenomeOfRightParent Int)
+
+(assert (= GenomeOfLeftParent (planet 0 (- SomeCellIndex 1))))
+(assert (= GenomeOfInterest (planet 1 SomeCellIndex)))
+(assert (= GenomeOfRightParent (planet 0 (+ SomeCellIndex 1))))
+
+(define-fun Pred_ToProveSpawnedCellOutlivesParents ((i Int)) Bool
+  (and
+    (= i SomeCellIndex)
+    (valid_cell_index i)
+
+    ;; Cell of interest spawns at time 1.
+    (spawn_event 1 i)
+    ;; Wlog, assume that the right parent dies.
+    (death_event 2 (+ i 1))
+    ;; Except for the last step,
+    ;; the cell of interest and its left parent stay alive.
+    ;; Its left parent also stays alive.
+    (forall ((t Int))
+      (=> (and (>= t 1) (< t Timespan))
+          (and (= (planet t i) GenomeOfInterest)
+               (= (planet t (- i 1)) GenomeOfLeftParent))))))
+
+(declare-const Lit_ToProveSpawnedCellOutlivesParents Bool)
+(assert (= Lit_ToProveSpawnedCellOutlivesParents
+           (Pred_ToProveSpawnedCellOutlivesParents SomeCellIndex)))
+
+(echo ".. Verifying that the assumptions are sound.")
+(echo ".. (expect sat)")
+(check-sat-assuming (Lit_ToProveSpawnedCellOutlivesParents Lit_TimespanUpTo4))
+
+
+(echo ".. Verifying that the left parent remains incompatible")
+(echo ".. with the right neighbor as long as the left parent does not die")
+(echo ".. (expect unsat)")
+(define-fun Pred_LeftParentIncompatibleWithRightNeighbor ((t Int) (i Int)) Bool
+  (=> (and (>= t 2) (< t Timespan)
+           (Pred_ToProveSpawnedCellOutlivesParents i))
+      (not (compatible GenomeOfLeftParent
+                       (planet t (+ i 1))))))
+
+(declare-const Lemma_LeftParentIncompatibleWithRightNeighbor Bool)
+(assert (= Lemma_LeftParentIncompatibleWithRightNeighbor
+           (Pred_LeftParentIncompatibleWithRightNeighbor SomeEventTime
+                                                         SomeCellIndex)))
+(declare-const Hypothesis_LeftParentIncompatibleWithRightNeighbor Bool)
+(assert (= Hypothesis_LeftParentIncompatibleWithRightNeighbor
+           (Pred_LeftParentIncompatibleWithRightNeighbor (- SomeEventTime 1)
+                                                         SomeCellIndex)))
+
+;;;; Proof by induction.
+(check-sat-assuming ((not Lemma_LeftParentIncompatibleWithRightNeighbor)
+                     InductionBasisTime2))
+(check-sat-assuming ((not Lemma_LeftParentIncompatibleWithRightNeighbor)
+                     (not InductionBasisTime2)
+                     Hypothesis_LeftParentIncompatibleWithRightNeighbor))
+(assert (forall ((t Int) (i Int))
+          (Pred_LeftParentIncompatibleWithRightNeighbor t i)))
+
+
+(echo ".. Verifying that the assumptions are sound.")
+(echo ".. (expect sat)")
+(check-sat-assuming (Lit_ToProveSpawnedCellOutlivesParents Lit_TimespanUpTo4))
+
+(echo ".. Verifying the cell of interest cannot die")
+(echo ".. because its left parent is still alive.")
+(echo ".. (expect unsat)")
+(declare-const Lit_SpawnedCellOutlivesParents Bool)
+(assert (= Lit_SpawnedCellOutlivesParents
+           (=> (Pred_ToProveSpawnedCellOutlivesParents SomeCellIndex)
+               (not (death_event Timespan SomeCellIndex)))))
+
+(check-sat-assuming ((not Lit_SpawnedCellOutlivesParents)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Unidirectionality.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(echo "######################################################################")
+(echo "Verifying that spawns eventually propagate in one direction.")
+
+(define-fun parentl ((t Int) (i Int)) Bool
+  (exists ((p Int))
+    (spawnable (planet t i)
+               (planet t (+ i 1))
+               p)))
+(define-fun parentr ((t Int) (i Int)) Bool
+  (exists ((p Int))
+    (spawnable p
+               (planet t (- i 1))
+               (planet t i))))
+
+(assert (forall ((i Int))
+          (=> (and (valid_cell_index i)
+                   (alive 0 i)
+                   (alive 0 (+ i 1)))
+              (or (parentl 0 i)
+                  (parentr 0 (+ i 1))))))
+
+(assert (forall ((i Int))
+          (=> (valid_cell_index i)
+              (not (and (parentl 0 i)
+                        (parentr 0 i))))))
+
+(assert (forall ((t Int) (i Int))
+          (=> (and (valid_event_time t)
+                   (valid_cell_index i)
+                   (parentl (- t 1) i)
+                   (not (alive (- t 1) (- i 1))))
+              (death_event t i))))
+
+(assert (forall ((t Int) (i Int))
+          (=> (and (valid_event_time t)
+                   (valid_cell_index i)
+                   (parentr (- t 1) i)
+                   (not (alive (- t 1) (+ i 1))))
+              (death_event t i))))
+
+(assert (forall ((t Int) (i Int))
+          (=> (and (valid_event_time t)
+                   (valid_cell_index i)
+                   (not (alive (- t 1) (- i 1)))
+                   (not (alive (- t 1) (+ i 1))))
+              (death_event t i))))
+
+
+(echo ".. Verifying that, when enforcing necessary deaths, the distance")
+(echo ".. from a right parent to a left parent strictly increases")
+(echo ".. as time goes on.")
+(echo ".. This means that either left or right parents will become extinct.")
+(echo ".. (expect unsat)")
+
+(define-fun Pred_DirectionCorrection ((t Int) (i Int)) Bool
+  (=> (and (valid_event_time t)
+           (valid_cell_index i)
+           (parentr (- t 1) 0)
+           (parentl (- t 1) i)
+           (forall ((j Int))
+             (=> (and (> j 0) (< j i))
+                 (and (not (parentr (- t 1) j))
+                      (not (parentl (- t 1) j))))))
+      (forall ((j Int))
+        (=> (and (>= j 0) (<= j i))
+            (and (not (parentr t j))
+                 (not (parentl t j)))))))
+
+(declare-const Lemma_DirectionCorrection Bool)
+(assert (= Lemma_DirectionCorrection
+           (Pred_DirectionCorrection SomeEventTime SomeCellIndex)))
+
+(check-sat-assuming ((not Lemma_DirectionCorrection)
+                     SingleEvent))
 
 ; vim: ft=lisp:lw+=define-fun,forall,exists:
