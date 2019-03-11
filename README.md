@@ -10,7 +10,7 @@ Given these rules and those for compatibility/spawning, does there exist some nu
 This behavior is summarized by a partial function &xi; that evaluates to &xi;(a,b)=c iff adjacent cells with genomes a and b can spawn a cell with genome c.
 &xi; has the following properties:
 
-1. &forall;a,b:&xi;(a,b)=&xi;(b,a) (commutativity)
+1. &forall;a,b: &xi;(a,b)=&xi;(b,a) (commutativity)
 2. |{&xi;(a,b) : &xi;(a,b)&ne;&UpTee;}| &isin; &Nopf; (finite set of genomes)
 3. &forall;a,b: &xi;(a,(a,b))=&UpTee; (incompatible with parents)
 4. &forall;a,b,c: &xi;(a,&xi;(&xi;(a,b),c))=&UpTee; (incompatible with grandparents)
@@ -26,7 +26,7 @@ In `monotonous.smt2`, we prove that when life is sustained, the sum of a planet'
 
 In `unidirectional.smt2`, we prove that sustained life can be modeled as each newly-spawned cell replacing its parent.
 Furthermore, as the filename implies, we prove that the spawns eventually propagate in one direction.
-Given these two facts, the problem of determining whether a given &xi; can yield sustainable life (i.e., the CircLife problem) is equivalent to [livelock detection](https://doi.org/10.1007/978-3-319-03089-0_12) on unidirectional rings of finite state machines.
+Given these two facts, the problem of determining whether a given &xi; can yield sustainable life (i.e., the CircLife problem) is equivalent to [finding a livelock](https://doi.org/10.1007/978-3-319-03089-0_12) in an arbitrarily sized unidirectional ring of finite state machines that each have the same transition function &xi;.
 
 In `reduction.smt2`, we give a reduction from the Periodic Domino Problem (for NW-deterministic Wang tiles) to our CircLife problem.
 This is just the key step of the reduction, whereas the rest of the proof is identical to the [undecidability proof](https://doi.org/10.1007/978-3-319-03089-0_12) of livelock detection for unidirectional rings of finite state machines.
