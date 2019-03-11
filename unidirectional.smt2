@@ -19,28 +19,18 @@
 (define-fun valid_cell_index ((i Int)) Bool  (and (>= i 0) (< i PlanetSize)))
 
 
-;; Dead cells have negative values.
-(define-fun alive ((t Int) (i Int)) Bool
-  (>= (planet t i) 0))
-
-(assert
-  (forall ((t Int) (i Int))
-    (=> (and (valid_time t)
-             (valid_cell_index i)
-             (not (alive t i)))
-        (= (planet t i) -1))))
-
-
 (declare-const SomeCellIndex Int)
 (declare-const SomeEventTime Int)
 
 
 (declare-const SingleEvent Bool)
 (declare-const InductionBasisTime2 Bool)
+(declare-const InductionBasisTime3 Bool)
 (declare-const InductionBasisTime5 Bool)
 (declare-const InductionBasisIndex2 Bool)
 (assert (= SingleEvent (= Timespan 1)))
 (assert (= InductionBasisTime2 (<= SomeEventTime 2)))
+(assert (= InductionBasisTime3 (<= SomeEventTime 3)))
 (assert (= InductionBasisTime5 (<= SomeEventTime 5)))
 (assert (= InductionBasisIndex2 (<= SomeCellIndex 2)))
 
@@ -62,8 +52,19 @@
              (planet t 0))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Halp.
+;; Dead cells have negative values.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define-fun alive ((t Int) (i Int)) Bool
+  (>= (planet t i) 0))
+
+;; Just make them all -1.
+(assert
+  (forall ((t Int) (i Int))
+    (=> (and (valid_time t)
+             (valid_cell_index i)
+             (not (alive t i)))
+        (= (planet t i) -1))))
 
 (define-fun spawn_event ((t Int) (i Int)) Bool
   (and (not (alive (- t 1) i))
@@ -201,13 +202,13 @@
            (Pred_ToProveSpawnedCellOutlivesParents SomeCellIndex)))
 
 (echo ".. Verifying that the assumptions are sound.")
-(echo ".. (expect sat)")
+(echo "(expect sat)")
 (check-sat-assuming (Lit_ToProveSpawnedCellOutlivesParents Lit_TimespanUpTo4))
 
 
 (echo ".. Verifying that the left parent remains incompatible")
 (echo ".. with the right neighbor as long as the left parent does not die")
-(echo ".. (expect unsat)")
+(echo "(expect unsat)")
 (define-fun Pred_LeftParentIncompatibleWithRightNeighbor ((t Int) (i Int)) Bool
   (=> (and (>= t 2) (< t Timespan)
            (Pred_ToProveSpawnedCellOutlivesParents i))
@@ -234,12 +235,12 @@
 
 
 (echo ".. Verifying that the assumptions are sound.")
-(echo ".. (expect sat)")
+(echo "(expect sat)")
 (check-sat-assuming (Lit_ToProveSpawnedCellOutlivesParents Lit_TimespanUpTo4))
 
 (echo ".. Verifying the cell of interest cannot die")
 (echo ".. because its left parent is still alive.")
-(echo ".. (expect unsat)")
+(echo "(expect unsat)")
 (declare-const Lit_SpawnedCellOutlivesParents Bool)
 (assert (= Lit_SpawnedCellOutlivesParents
            (=> (Pred_ToProveSpawnedCellOutlivesParents SomeCellIndex)
@@ -249,11 +250,11 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Unidirectionality.
+;; Progress.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (echo "######################################################################")
-(echo "Verifying that spawns eventually propagate in one direction.")
+(echo "Assuming sustained life, we can force progress in our model wlog.")
 
 (define-fun parentl ((t Int) (i Int)) Bool
   (exists ((p Int))
@@ -266,6 +267,8 @@
                (planet t (- i 1))
                (planet t i))))
 
+(echo ".. Wlog assuming that, in any continuous pair of cells,")
+(echo ".. one cell must have spawned the other.")
 (assert (forall ((i Int))
           (=> (and (valid_cell_index i)
                    (alive 0 i)
@@ -273,38 +276,60 @@
               (or (parentl 0 i)
                   (parentr 0 (+ i 1))))))
 
+(define-fun death_event_if ((t Int) (i Int) (b Bool)) Bool
+  (=> (and (valid_event_time t)
+           (valid_cell_index i)
+           b)
+      (death_event t i)))
+
+(echo ".. Wlog force parent cells compatible with a neighbor to spawn and die.")
+(echo ".. Wlog force cells compatible with both neighbors to spawn 2 and die.")
+(assert
+  (forall ((t Int) (i Int))
+    (and
+      (death_event_if t i (and (not (alive (- t 1) (- i 1)))
+                               (parentl (- t 1) i)))
+      (death_event_if t i (and (parentr (- t 1) i)
+                               (not (alive (- t 1) (+ i 1)))))
+      (death_event_if t i (and (not (alive (- t 1) (- i 1)))
+                               (not (alive (- t 1) (+ i 1))))))))
+
+(echo ".. Verifying that if all cells that have spawned two others die,")
+(echo ".. such parent cells will never exist at future times.")
+(echo "(expect unsat)")
+
+(define-fun Pred_ParentHasUniqueSide ((t Int) (i Int)) Bool
+  (=> (and (valid_time t)
+           (valid_cell_index i))
+      (not (and (parentl t i)
+                (parentr t i)))))
+
+(define-fun Pred_UniqueParentSideAfterOneStep ((t Int) (i Int)) Bool
+  (=> (and (valid_event_time t)
+           (death_event_if t i (not (Pred_ParentHasUniqueSide (- t 1) i))))
+      (Pred_ParentHasUniqueSide t i)))
+
+(declare-const Lemma_UniqueParentSideAfterOneStep Bool)
+(assert (= Lemma_UniqueParentSideAfterOneStep
+           (Pred_UniqueParentSideAfterOneStep SomeEventTime SomeCellIndex)))
+(check-sat-assuming ((not Lemma_UniqueParentSideAfterOneStep)))
+
 (assert (forall ((i Int))
-          (=> (valid_cell_index i)
-              (not (and (parentl 0 i)
-                        (parentr 0 i))))))
+          (Pred_ParentHasUniqueSide 0 i)))
 
-(assert (forall ((t Int) (i Int))
-          (=> (and (valid_event_time t)
-                   (valid_cell_index i)
-                   (parentl (- t 1) i)
-                   (not (alive (- t 1) (- i 1))))
-              (death_event t i))))
 
-(assert (forall ((t Int) (i Int))
-          (=> (and (valid_event_time t)
-                   (valid_cell_index i)
-                   (parentr (- t 1) i)
-                   (not (alive (- t 1) (+ i 1))))
-              (death_event t i))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Unidirectionality.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(assert (forall ((t Int) (i Int))
-          (=> (and (valid_event_time t)
-                   (valid_cell_index i)
-                   (not (alive (- t 1) (- i 1)))
-                   (not (alive (- t 1) (+ i 1))))
-              (death_event t i))))
-
+(echo "######################################################################")
+(echo "Verifying that spawns eventually propagate in one direction.")
 
 (echo ".. Verifying that, when enforcing necessary deaths, the distance")
 (echo ".. from a right parent to a left parent strictly increases")
 (echo ".. as time goes on.")
 (echo ".. This means that either left or right parents will become extinct.")
-(echo ".. (expect unsat)")
+(echo "(expect unsat)")
 
 (define-fun Pred_DirectionCorrection ((t Int) (i Int)) Bool
   (=> (and (valid_event_time t)
@@ -326,5 +351,41 @@
 
 (check-sat-assuming ((not Lemma_DirectionCorrection)
                      SingleEvent))
+
+(echo ".. Wlog removing right parents.")
+(echo ".. Verifying that they are not created in subsequent steps.")
+(echo "(expect unsat)")
+(define-fun Pred_AllParentsHaveSameSide ((t Int)) Bool
+  (forall ((i Int))
+    (=> (and (valid_time t)
+             (valid_cell_index i))
+        (not (parentr t i)))))
+
+(assert (Pred_AllParentsHaveSameSide 0))
+
+(declare-const Lemma_AllParentsHaveSameSide Bool)
+(assert (= Lemma_AllParentsHaveSameSide
+           (Pred_AllParentsHaveSameSide SomeEventTime)))
+(check-sat-assuming ((not Lemma_AllParentsHaveSameSide)
+                     SingleEvent))
+
+
+(echo ".. Verifying that every spawn has a death to its right side.")
+(echo ".. This proves unidirectionality.")
+(echo "(expect unsat)")
+(define-fun Pred_Unidirectional ((t Int)) Bool
+  (forall ((i Int))
+    (=> (and (valid_event_time t)
+             (valid_cell_index i)
+             (spawn_event t i))
+        (death_event t (+ i 1)))))
+
+(declare-const Lemma_Unidirectional Bool)
+(assert (= Lemma_Unidirectional
+           (Pred_Unidirectional SomeEventTime)))
+
+(check-sat-assuming ((not Lemma_Unidirectional)
+                     SingleEvent))
+
 
 ; vim: ft=lisp:lw+=define-fun,forall,exists:
