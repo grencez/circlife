@@ -22,11 +22,11 @@ When a spawn occurs, the planet's population increases by 1, but its potential p
 In this way, the sum of the planet's actual and potential populations is non-increasing.
 Since the number of genomes is finite as well (no evolution), only a finite set of configurations can be reached.
 
-In `monotonous.smt2`, we prove that when life is sustained, the sum of a planet's actual and potential populations must remain constant, therefore each cell that dies must be incompatible with its neighbors, and those neighbors must be compatible with each other.
+In [monotonous.smt2](monotonous.smt2), we prove that when life is sustained, the sum of a planet's actual and potential populations must remain constant, therefore each cell that dies must be incompatible with its neighbors, and those neighbors must be compatible with each other.
 
-In `unidirectional.smt2`, we prove that sustained life can be modeled as each newly-spawned cell replacing its parent.
+In [unidirectional.smt2](unidirectional.smt2), we prove that sustained life can be modeled as each newly-spawned cell replacing its parent.
 Furthermore, as the filename implies, we prove that the spawns eventually propagate in one direction.
 Given these two facts, the problem of determining whether a given &xi; can yield sustainable life (i.e., the CircLife problem) is equivalent to [finding a livelock](https://doi.org/10.1007/978-3-319-03089-0_12) in an arbitrarily sized unidirectional ring of finite state machines that each have the same transition function &xi;.
 
-In `reduction.smt2`, we give a reduction from the Periodic Domino Problem (for NW-deterministic Wang tiles) to our CircLife problem.
+In [reduction.smt2](reduction.smt2), we give a reduction from the Periodic Domino Problem (for NW-deterministic Wang tiles) to our CircLife problem.
 This is just the key step of the reduction, whereas the rest of the proof is identical to the [undecidability proof](https://doi.org/10.1007/978-3-319-03089-0_12) of livelock detection for unidirectional rings of finite state machines.
