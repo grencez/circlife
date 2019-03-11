@@ -393,7 +393,7 @@
 
 
 (echo ".. Proving that we can apply downward induction on Pred_SustainableDeath.")
-(echo ".. (expect unsat)")
+(echo "(expect unsat)")
 (define-fun Pred_Downward_SustainableDeath ((t Int) (i Int)) Bool
   (=> (and (valid_event_time t)
            (valid_cell_index t i))
@@ -417,7 +417,7 @@
 
 
 (echo ".. Verifying that SustainedLife implies Pred_SustainableDeath.")
-(echo ".. (expect unsat)")
+(echo "(expect unsat)")
 
 (declare-const Lit_SustainableDeath Bool)
 (assert (= Lit_SustainableDeath
@@ -437,7 +437,7 @@
               (Pred_SustainableDeath t i))))
 
 (echo ".. Verifying the actual lemma.")
-(echo ".. (expect unsat)")
+(echo "(expect unsat)")
 
 (declare-const Lemma_SustainableDeathAddsCompatibility Bool)
 (assert (= Lemma_SustainableDeathAddsCompatibility
