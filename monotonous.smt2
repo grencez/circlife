@@ -51,10 +51,6 @@
 (declare-const SomeCellIndex Int)
 (declare-const SomeEventTime Int)
 
-; We don't rely on these constraints, but they help the solver.
-(assert (valid_event_time SomeEventTime))
-(assert (valid_cell_index SomeEventTime SomeCellIndex))
-
 (check-sat)
 
 (declare-const SingleEvent Bool)
@@ -268,6 +264,7 @@
 
 ;;;; Proof by induction.
 (check-sat-assuming ((not Lemma_SpawnDecreasesPopulationPotentialByOne)
+                     SingleEvent
                      InductionBasisIndex1))
 (check-sat-assuming ((not Lemma_SpawnDecreasesPopulationPotentialByOne)
                      SingleEvent
@@ -308,6 +305,7 @@
 
 ;;;; Proof by induction.
 (check-sat-assuming ((not Lemma_DeathIncreasesPopulationPotentialByAtMostOne)
+                     SingleEvent
                      InductionBasisIndex1))
 (check-sat-assuming ((not Lemma_DeathIncreasesPopulationPotentialByAtMostOne)
                      SingleEvent
