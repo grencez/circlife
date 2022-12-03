@@ -10,9 +10,9 @@ Given these rules and those for compatibility/spawning, does there exist some nu
 This behavior is summarized by a partial function &xi; that evaluates to &xi;(a,b)=c iff adjacent cells with genomes a and b can spawn a cell with genome c.
 &xi; has the following properties:
 
-1. &forall;a,b: &xi;(a,b)=&xi;(b,a) (commutativity)
+1. &forall;a,b: &xi;(a,b)=&xi;(b,a) (commutative)
 2. |{&xi;(a,b) : &xi;(a,b)&ne;&UpTee;}| &isin; &Nopf; (finite set of genomes)
-3. &forall;a,b: &xi;(a,(a,b))=&UpTee; (incompatible with parents)
+3. &forall;a,b: &xi;(a,&xi;(a,b))=&UpTee; (incompatible with parents)
 4. &forall;a,b,c: &xi;(a,&xi;(&xi;(a,b),c))=&UpTee; (incompatible with grandparents)
 5. &xi; can be nondeterministic, even though we are writing it as a function here
 
